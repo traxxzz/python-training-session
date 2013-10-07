@@ -29,7 +29,7 @@ class KdbLogHandler(object):
         pass
 
     def __iter__(self):
-        pass
+        return iter(self.get_next_record, None)
 
 class CSVKdbLogHandler(KdbLogHandler):
     """Provide comfortable access to KDB(Mercury) dump files in csv format"""
@@ -80,11 +80,11 @@ class CSVKdbLogHandler(KdbLogHandler):
         self.__repeat = None
         self.gen = self.__parse(self.filename)
         self.gen.next()
-        return iter(self.get_next_record, None)
+        return super(CSVKdbLogHandler, self).__iter__()
 
 # Debug
 if __name__ == '__main__':
-    marketdata = CSVKdbLogHandler("/home/abbath/Downloads/EUR.USD.2")
+    marketdata = CSVKdbLogHandler("C:/Documents and Settings/romaily/My Documents/EUR.USD.2")
     i = 1
     for record in marketdata:
         print record
