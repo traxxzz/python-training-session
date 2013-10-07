@@ -26,7 +26,7 @@ class KdbLogHandler(object):
         self.filename = filename
 
     def get_next_record(self):
-        pass
+        raise NotImplementedError("Subclasses should implement get_next_record()")
 
     def __iter__(self):
         return iter(self.get_next_record, None)
