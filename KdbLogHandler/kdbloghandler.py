@@ -29,7 +29,10 @@ class KdbLogHandler(object):
         raise NotImplementedError("Subclasses should implement get_next_record()")
 
     def __iter__(self):
-        return iter(self.get_next_record, None)
+        return self
+
+    def next(self):
+        return self.get_next_record()
 
 class CSVKdbLogHandler(KdbLogHandler):
     """Provide comfortable access to KDB(Mercury) dump files in csv format"""
@@ -84,7 +87,8 @@ class CSVKdbLogHandler(KdbLogHandler):
 
 # Debug
 if __name__ == '__main__':
-    marketdata = CSVKdbLogHandler("C:/Documents and Settings/romaily/My Documents/EUR.USD.2")
+    # marketdata = CSVKdbLogHandler("C:/Documents and Settings/romaily/My Documents/EUR.USD.2")
+    marketdata = CSVKdbLogHandler("/home/abbath/Downloads/EUR.USD.2")
     i = 1
     for record in marketdata:
         print record
