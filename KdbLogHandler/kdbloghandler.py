@@ -20,13 +20,16 @@ KdbLogHandler is a kind of interface. Extending classes have to implement his me
 
 __author__ = 'Ilya Romanchenko'
 
+import csv
+from failure import KdbLogHandlerNotImplementedError
+
 class KdbLogHandler(object):
     """store market data from dump file"""
     def __init__(self, filename=None):
         self.filename = filename
 
     def get_next_record(self):
-        raise NotImplementedError("Subclasses should implement get_next_record()")
+        raise KdbLogHandlerNotImplementedError("Subclasses of KdbLogHandler must implement get_next_record() method")
 
     def __iter__(self):
         while True:
@@ -51,10 +54,12 @@ class CSVKdbLogHandler(KdbLogHandler):
 
     def __parse(self, filename):
         """read market data from dump file and return generator object"""
-        with open(filename, "r") as dump:
-            for line in dump:
-                rowDict = line.strip("\r\n").split(",")
-                while (yield rowDict):
+        with open(filename, "rb") as csvfile:
+            dialect = csv.Sniffer().sniff(csvfile.read(1024))
+            csvfile.seek(0)
+            reader = csv.reader(csvfile, dialect=dialect, delimiter=',')
+            for row in reader:
+                while (yield row):
                     continue
 
     def __merge(self, lines):
