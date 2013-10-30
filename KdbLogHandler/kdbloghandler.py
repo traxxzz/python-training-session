@@ -1,21 +1,22 @@
 """Handler for getting historical market data from KDB(Mercury) via parsing dump files.
 
-Instantiate appropriate class with filename. Returned object has method get_next_record()
+Instantiate appropriate class with file object. Returned object has method get_next_record()
 returning dict with key-value pairs for each piece of market data. In addition the object is iterable.
 
     import kdbloghandler
-    marketdata = kdbloghandler.CSVKbdLogHandler("/home/abbath/Downloads/EUR.USD.2")
+    with open(filename, "rb") as csvfile:
+        marketdata = kdbloghandler.CSVKbdLogHandler(csvfile)
 
-    record = marketdata.get_next_record()   # In such case of usage the object acts like a generator.
-                                            # It preserves last position in file.
+        record = marketdata.get_next_record()   # In such case of usage the object acts like a generator.
+                                                # It preserves last position in file.
 
-    for record in marketdata:               # The object acts like an iterator.
-        proceed(record)                     # It starts from the beginning each time.
+        for record in marketdata:               # The object acts like an iterator.
+            proceed(record)                     # It starts from the beginning each time.
 
 
 Handler can be extended by adding classes for particular file types, e.g. XMLKbdLogHandler, JSONKbdLogHandler etc.
 Each class is completely responsible for parsing its files appropriately; see CSVFileInfo for example.
-KdbLogHandler is a kind of interface. Extending classes have to implement get_next_record() method.
+All extending classes should be inherited from KdbLogHandler. All of them have to implement get_next_record() method.
 """
 
 __author__ = 'Ilya Romanchenko'
@@ -24,8 +25,8 @@ import csv
 
 class KdbLogHandler(object):
     """Store market data from dump file."""
-    def __init__(self, filename=None):
-        self.filename = filename
+    def __init__(self, csvfile=None):
+        self.csvfile = csvfile
 
     def get_next_record(self):
         raise KdbLogHandlerNotImplementedError("Subclasses of KdbLogHandler must implement get_next_record() method")
@@ -37,32 +38,26 @@ class KdbLogHandler(object):
 class CSVKdbLogHandler(KdbLogHandler):
     """Provide comfortable access to KDB(Mercury) dump files in csv format."""
 
-    def __init__(self, filename):
-        super(CSVKdbLogHandler, self).__init__(filename)
-        self.reader = self.__open(filename)
+    def __init__(self, csvfile):
+        super(CSVKdbLogHandler, self).__init__(csvfile)
+        self.reader = self.__get_csv_reader(csvfile)
         self.rowDict = {}
 
     def __iter__(self):
-        self.reader = self.__open(self.filename)
+        self.reader = self.__get_csv_reader(self.csvfile)
         self.rowDict = {}
         return super(CSVKdbLogHandler, self).__iter__()
 
-    def __open(self, filename):
+    def __get_csv_reader(self, csvfile):
         """read market data from dump file and return generator object."""
-        with open(filename, "rb") as csvfile:
-            try:
-                dialect = csv.Sniffer().sniff(csvfile.read(1024))
-            except csv.Error, e:
-                raise KdbLogHandlerCSVError('Bad file: "{}": {}'.format(self.filename, e))
+        try:
             csvfile.seek(0)
-            reader = csv.DictReader(csvfile, dialect=dialect, delimiter=',')
-            try:
-                for row in reader:
-                    if None in row.keys() or None in row.values():
-                        raise csv.Error('The row read has different columns count than the column names sequence')
-                    yield row
-            except csv.Error, e:
-                raise KdbLogHandlerCSVError('Bad file: "{}", line {}:\n {}'.format(self.filename, reader.line_num, e))
+            dialect = csv.Sniffer().sniff(csvfile.read(1024))
+        except csv.Error, e:
+            raise KdbLogHandlerCSVError('Bad file: "{}": {}'.format(self.csvfile.name, e))
+        else:
+            csvfile.seek(0)
+        return csv.DictReader(csvfile, dialect=dialect, delimiter=',')
 
     def __restruct(self, rowDict):
         """Flattened dict from row of csv ==> desired structure with nested dicts."""
@@ -76,7 +71,7 @@ class CSVKdbLogHandler(KdbLogHandler):
                                                              'askSize': rowDict['askSize'],
                                                              'askPrice': rowDict['askPrice']}
             except KeyError, e:
-                raise KdbLogHandlerKeyError('Bad file: "{}" does not contain required column {}'.format(self.filename, e))
+                raise KdbLogHandlerKeyError('Bad file: "{}" does not contain required column {}'.format(self.csvfile.name, e))
         return rowDict
 
     def get_next_record(self):
@@ -85,6 +80,10 @@ class CSVKdbLogHandler(KdbLogHandler):
         while self.reader:
             try:
                 rowDict = self.__restruct(self.reader.next())
+                if None in rowDict.keys() or None in rowDict.values():
+                    raise csv.Error('The row read has different columns count than the column names sequence')
+            except csv.Error, e:
+                raise KdbLogHandlerCSVError('Bad file: "{}", line {}:\n {}'.format(self.csvfile.name, self.reader.line_num, e))
             except StopIteration:
                 self.reader = None
                 break
